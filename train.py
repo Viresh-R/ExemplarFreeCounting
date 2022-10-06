@@ -23,19 +23,12 @@ orig_path = '/nfs/bigneuron.cs.stonybrook.edu/viresh/class-agnostic-new/ClassAgn
 sys.path.insert(0, orig_path)
 from datasetBoxesBatchWCropDotsPastebigneuronCreateExemplars import CountingDataset, Normalize, ResizeExampleImage, ResizeImage, ToTensor,CropImage
 from core.model import weights_normal_init,ResNet50Conv
-#from model import CountRegressorNoInterpolationBPool as CountRegressor
-#from core.model import CountRegressor2X as CountRegressor 
-#from model import CountRegressorNoInterpolationBPool as CountRegressor
 from os.path import basename, exists, join, splitext
 import math
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from utilsGAN import  format_for_plotting,denormalize,visualizeOutputQuery,standardize_and_clip,getGaussianFromDot
 from utilsA import extract_features,extract_featuresManifoldMixup
-#from models import GeneratorUNet,DiscriminatorUNet
-#from networksCycleGAN import define_G, define_D
-#from model import FeatMapINLeaky as FeatMap
-#from networksCycleGAN import FeatMapINLeaky as FeatMap
 import copy
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
@@ -62,11 +55,9 @@ base_dir = "/nfs/bigneuron.cs.stonybrook.edu/viresh/FSC_NewDataOnly" # Dataset N
 
 # In[4]:
 dataset_dir = join(base_dir, "dataset.json")
-json_annotation = "/nfs/bigneuron.cs.stonybrook.edu/viresh/FSC_NewDataOnly/json_annotationCombined_384_VarV2_updated1.json"
+json_annotation = "json_annotationCombined_384_VarV2_updated1.json"
 images_dir = join(base_dir, "images_384_VarV2")
 density_map_dir = join(base_dir, "gt_density_map_adaptive_384_VarV2")
-#src_dot_dir = '/nfs/bigneuron/viresh/class-agnostic-new/ClassAgnosticCounting/GAN/JitteredDataset384/dots_original'
-src_dot_dir = '/nfs/bigcornea/add_disk0/viresh/data/JitteredDataset384/dots_original'
 
 
 if not exists('save'): os.makedirs('save')
@@ -87,10 +78,8 @@ MAPS = ['map3','map4'] # '0','1','2','3' are 4, 8, 16, 32 times smaller respecti
 Scales = [0.9, 1.1]
 PreTrained = True
 
-MODEL_NAME_PREFIX = "ZSC_Top3Proposals_DenseRPN_KD_FamNetB_BinarizedKT_RPN_MeanPooledC_SortedCount_RPNMapA"
+MODEL_NAME_PREFIX = "RepRPNCounter"
 outdir = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/logs/' + MODEL_NAME_PREFIX
-#outdir = '/nfs/biglens.cs.stonybrook.edu/viresh/logs/' + MODEL_NAME_PREFIX
-#outdir = '/nfs/bigcornea/add_disk0/viresh/data/Result/' + MODEL_NAME_PREFIX
 if not exists(outdir): os.makedirs(outdir)
 wpixel = 1e-5    
 weightG = 1e-5
@@ -110,31 +99,19 @@ import pickle
 
 #writer.close()
 import pickle5
-#proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/Proposals_Top3_NearestNeighbor_FromTop50.pkl'
-#proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/Proposals_Top3_ClusteringAlgo1_Support3_50.pkl'
-#proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/Proposals_Top3_DenseRPN_352_704.pkl'
-proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/Proposals_Top3_DenseRPN_384_768_BinarizedKT_COCOFinetune.pkl'
-proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/Proposals_Top3_DenseRPN_384_768_BinarizedKT_COCOFinetune_ZSC_TransformerCounterC_COCO_RPN_FineTune_DualRPN_BinarizedKTB_Top50_Save2.pkl'
-proposal_filename = '/nfs/bigbox/viresh/projects/FSC/ZSC/data/Proposals_Top3_DenseRPN_384_768_BinarizedKT_COCOFinetune_ZSC_TransformerCounterC_COCO_RPN_FineTune_DualRPN_BinarizedKTB_Top50_WithCount_Save2.pkl'
+proposal_filename = 'RepRPN_Predicted_Proposals.pkl'
 with open(proposal_filename, 'rb') as handle:
     All_Proposal = pickle5.load(handle)
 All_Proposal_new = dict()
 All_Counts_new = dict()
 for pathX in All_Proposal.keys():
-
-
-    #image, boxes = sample_batched['image'].cuda(), sample_batched['boxes'].cuda()
-    #pathX = sample_batched['path'][0]
-
-    #boxes = All_Proposal[pathX][0:NUM_EXAMPLES][0].cuda().unsqueeze(0).unsqueeze(0)
-    #counts = All_Proposal[pathX][0:NUM_EXAMPLES][1].cuda().unsqueeze(0).unsqueeze(0)
     boxes = All_Proposal[pathX][0][0:10].cuda()
     counts = All_Proposal[pathX][1][0:10].cuda()
     values,indices = torch.sort(counts,descending=True)  
     All_Proposal_new[pathX] = boxes[indices[0:NUM_EXAMPLES]]
     All_Counts_new[pathX] = counts[indices[0:NUM_EXAMPLES]]
     
-proposal_filename = '/nfs/bigbox.cs.stonybrook.edu/viresh/projects/FSC/ZSC/data/AllBoxes_fromPoints.pkl'
+proposal_filename = 'AllBoxes_fromPoints.pkl' # GT proposals
 with open(proposal_filename, 'rb') as handle:
     All_Proposal_Boxes = pickle.load(handle)
 #shutil.rmtree(outdir)
@@ -512,7 +489,7 @@ for epoch in range(start_epoch,MAX_EPOCHS):
     model_name = outdir + '/' + "{}_current_State.pth".format(MODEL_NAME_PREFIX)
     torch.save(current_state, model_name)
 
-    print("ZSC  3 proposals DenseRPN KD FamNet B Binarized KT Mean Pooled C Sorted Count RPN Map Save 2: {} Model: {} Avg. Epoch Loss: {} Train MAE: {} Train RMSE: {} Val MAE: {} Val RMSE: {} Best Val MAE: {} Best Val RMSE: {} Time taken: {} secs".format(
+    print("RepRPNCounter  training: {} Model: {} Avg. Epoch Loss: {} Train MAE: {} Train RMSE: {} Val MAE: {} Val RMSE: {} Best Val MAE: {} Best Val RMSE: {} Time taken: {} secs".format(
               epoch+1, MODEL_NAME_PREFIX, stats[-1][0], stats[-1][1], stats[-1][2], stats[-1][3], stats[-1][4], best_mae, best_rmse, round((t1-t0))))
 
 
